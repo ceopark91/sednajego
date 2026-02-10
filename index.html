@@ -1,764 +1,362 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SEDNA 모바일 - 제품/입출고/재고</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AI자력이탈감지</title>
   <style>
-    body { -webkit-tap-highlight-color: transparent; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    :root {
+      --bg1: #f8f5ee;
+      --bg2: #dce5ea;
+      --card: rgba(255, 255, 255, 0.9);
+      --text: #182026;
+      --muted: #5f6a73;
+      --accent: #e76f51;
+      --accent-2: #2a9d8f;
+      --danger: #d62828;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 80% -10%, #f4c7ab55 10%, transparent 60%),
+        radial-gradient(900px 500px at -10% 100%, #8ecae655 10%, transparent 60%),
+        linear-gradient(145deg, var(--bg1), var(--bg2));
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .app {
+      width: min(760px, 100%);
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      overflow: hidden;
+    }
+    .header { padding: 20px 20px 8px; }
+    h1 { margin: 0; font-size: clamp(1.3rem, 2.8vw, 1.8rem); }
+    .sub { margin-top: 8px; color: var(--muted); font-size: 0.95rem; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 20px 14px; }
+    button {
+      border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 700;
+      cursor: pointer; min-width: 120px;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    #startBtn { background: var(--accent-2); color: white; }
+    #stopBtn { background: var(--danger); color: white; }
+    .status {
+      margin: 0 20px 14px; padding: 12px; border-radius: 10px; background: #f4f7f9;
+      color: #334155; font-size: 0.93rem; border-left: 5px solid #93a5b1; white-space: pre-line;
+    }
+    .status.ok {
+      border-left-color: #1f9d77;
+      background: #e9f9f3;
+      color: #116149;
+      font-weight: 700;
+    }
+    .status.warn { border-left-color: var(--accent); }
+    .status.err {
+      border-left-color: #d62828;
+      background: #fff0f0;
+      color: #9f1d1d;
+      font-weight: 800;
+    }
+    .alert-box {
+      margin: 0 20px 14px; padding: 12px; border-radius: 10px;
+      border: 1px solid #f5c2c2; background: #fff1f1; color: #8a1f1f; font-weight: 700; display: none;
+    }
+    .alert-box.active {
+      display: block;
+      border-color: #e03131;
+      background: #ffe3e3;
+      color: #a51111;
+      box-shadow: 0 0 0 2px #ffc9c9 inset;
+    }
+    .main-result {
+      margin: 0 20px 12px; padding: 14px; border-radius: 12px;
+      background: #fff; border: 1px solid #dde4ea; display: grid; gap: 6px;
+    }
+    .track {
+      margin: 0 20px 12px; background: #fff; border: 1px solid #dde4ea;
+      border-radius: 10px; padding: 10px 12px; font-size: 0.9rem;
+    }
+    .track-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      margin-bottom: 8px; font-variant-numeric: tabular-nums;
+    }
+    .track-bar-bg { width: 100%; height: 10px; background: #edf2f7; border-radius: 999px; overflow: hidden; }
+    .track-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ff8f00, #d62828); transition: width 0.12s linear; }
+    .list { display: grid; gap: 10px; margin: 0; padding: 0 20px 20px; list-style: none; }
+    .item { background: #fff; border-radius: 10px; border: 1px solid #e2e8ee; overflow: hidden; }
+    .row { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px 8px; font-size: 0.95rem; }
+    .bar-bg { width: 100%; height: 10px; background: #edf2f7; }
+    .bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ff8f00, #e76f51); transition: width 0.12s linear; }
+    .hint { margin: 0 20px 20px; color: var(--muted); font-size: 0.88rem; }
+    code { background: #f2f5f8; padding: 1px 5px; border-radius: 5px; font-family: Consolas, monospace; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <header class="sticky top-0 z-40 bg-white border-b border-slate-200">
-    <div class="px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-          <i data-lucide="boxes" class="w-5 h-5"></i>
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 font-semibold">SEDNA</p>
-          <h1 class="text-base font-bold">모바일 재고 관리</h1>
-        </div>
-      </div>
-      <div class="text-xs text-slate-500 font-medium" id="todayText"></div>
+<body>
+  <section class="app">
+    <div class="header">
+      <h1>AI자력이탈감지</h1>
+      <div class="sub">로컬 모델 파일(<code>model.json</code>, <code>metadata.json</code>, <code>weights.bin</code>)로 동작합니다.</div>
+      <div class="sub" id="modelInfo">모델 정보: 로딩 전</div>
     </div>
-    <nav class="px-3 pb-2">
-      <div class="grid grid-cols-3 gap-2 text-sm font-semibold">
-        <button class="tab-btn px-3 py-2 rounded-xl bg-blue-600 text-white" data-target="products">제품관리</button>
-        <button class="tab-btn px-3 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-target="transactions">입출고</button>
-        <button class="tab-btn px-3 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-target="stock">재고현황</button>
+
+    <div class="controls">
+      <button id="startBtn">마이크 시작</button>
+      <button id="stopBtn" disabled>중지</button>
+    </div>
+
+    <div id="status" class="status">대기 중</div>
+    <div id="alertBox" class="alert-box">자력이탈 경고: 2.0초 누적 70% 기준 충족</div>
+
+    <div class="main-result">
+      <div id="topLabel">예측 없음</div>
+      <div id="topConfidence">신뢰도: 0%</div>
+    </div>
+
+    <div class="track">
+      <div class="track-row">
+        <strong>자력이탈 연속 감지</strong>
+        <span id="trackText">0.0 / 2.0초 (기준 70%)</span>
       </div>
-    </nav>
-  </header>
+      <div class="track-bar-bg"><div id="trackBar" class="track-bar"></div></div>
+    </div>
 
-  <main class="px-4 py-4 space-y-6">
-    <section id="products" class="space-y-4">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-        <div class="flex items-center gap-2">
-          <button class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-semibold" onclick="openProductModal()">제품 추가</button>
-          <button class="py-2.5 px-3 rounded-xl bg-slate-100 text-slate-700 font-semibold" onclick="exportProducts()">내보내기</button>
-          <button class="py-2.5 px-3 rounded-xl bg-slate-100 text-slate-700 font-semibold" onclick="triggerImport()">불러오기</button>
-          <input id="productsImportInput" type="file" accept=".csv" class="hidden" />
-        </div>
-        <div class="space-y-2">
-          <div class="relative">
-            <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-400"></i>
-            <input id="productSearch" type="text" placeholder="제품명/코드/카테고리/메모 검색"
-              class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              oninput="applyProductFilters()">
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <select id="productCategoryFilter" class="px-2 py-2 rounded-xl border border-slate-200 text-sm" onchange="applyProductFilters()">
-              <option value="">전체 카테고리</option>
-            </select>
-            <select id="productStockFilter" class="px-2 py-2 rounded-xl border border-slate-200 text-sm" onchange="applyProductFilters()">
-              <option value="">전체 재고</option>
-              <option value="low">부족</option>
-              <option value="normal">정상</option>
-            </select>
-            <select id="productSort" class="px-2 py-2 rounded-xl border border-slate-200 text-sm" onchange="applyProductFilters()">
-              <option value="name">이름순</option>
-              <option value="code">코드순</option>
-              <option value="stock-low">재고 낮은순</option>
-              <option value="stock-high">재고 높은순</option>
-              <option value="recent">최근순</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div id="productsGrid" class="grid grid-cols-1 gap-3"></div>
-    </section>
-
-    <section id="transactions" class="space-y-4 hidden">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <div class="grid grid-cols-2 gap-2">
-          <button id="btn-in" class="py-3 rounded-xl bg-emerald-600 text-white font-bold" onclick="setType('IN')">입고 (IN)</button>
-          <button id="btn-out" class="py-3 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold" onclick="setType('OUT')">출고 (OUT)</button>
-        </div>
-
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-slate-700">스캔 방법</p>
-            <div class="flex gap-2">
-              <button id="barcodeModeBtn" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold" onclick="switchScanMode('barcode')">바코드 리더기</button>
-              <button id="cameraModeBtn" class="px-3 py-1.5 rounded-lg bg-slate-200 text-slate-600 text-xs font-bold" onclick="switchScanMode('camera')">웹캠 QR</button>
-            </div>
-          </div>
-          <div id="barcodeModePanel">
-            <div class="relative">
-              <input id="barcode-input" type="text" placeholder="바코드 리더기로 스캔하거나 입력하세요"
-                class="w-full px-3 py-3 rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <i data-lucide="zap" class="absolute right-3 top-3 w-5 h-5 text-blue-500 animate-pulse"></i>
-            </div>
-            <div id="recent-scans" class="mt-2 space-y-2"></div>
-          </div>
-          <div id="cameraModePanel" class="hidden">
-            <div id="qr-reader" class="w-full rounded-xl overflow-hidden border border-blue-200"></div>
-            <button class="mt-2 w-full py-3 rounded-xl border border-dashed border-slate-300 text-slate-600 font-semibold" onclick="toggleCamera()">웹캠 스캔 시작/중지</button>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-sm font-semibold text-slate-700">제품 선택</label>
-          <div class="relative">
-            <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-400"></i>
-            <input id="productSearchInput" type="text" placeholder="제품명 또는 코드 검색 (또는 스캐너)"
-              class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              oninput="updateProductSearchList(this.value)" onfocus="updateProductSearchList(this.value)" autocomplete="off">
-            <button id="clearSelectionBtn" class="hidden absolute right-3 top-2.5 text-slate-400" onclick="clearSelection()">
-              <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
-            <div id="autocomplete-list" class="hidden bg-white border border-slate-200 rounded-xl mt-1 max-h-60 overflow-y-auto shadow-lg absolute left-0 right-0 top-full z-30"></div>
-          </div>
-          <div id="selectedProductInfo" class="hidden p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm"></div>
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-sm font-semibold text-slate-700">수량</label>
-          <div class="flex items-center">
-            <button class="px-4 py-3 bg-slate-100 rounded-l-xl border border-slate-200 text-lg font-bold" onclick="adjustQty(-1)">-</button>
-            <input id="txQuantity" type="number" min="1" value="1" class="w-full text-center border-y border-slate-200 py-3 font-bold text-lg">
-            <button class="px-4 py-3 bg-slate-100 rounded-r-xl border border-slate-200 text-lg font-bold" onclick="adjustQty(1)">+</button>
-          </div>
-        </div>
-
-        <button class="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold text-lg" onclick="submitTransaction()">처리하기</button>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <h3 class="font-bold text-base mb-3 flex items-center gap-2">
-          <i data-lucide="list" class="w-4 h-4 text-slate-400"></i>실시간 처리 로그
-        </h3>
-        <div id="txLogList" class="space-y-2"></div>
-      </div>
-    </section>
-
-    <section id="stock" class="space-y-4 hidden">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-base">재고 현황</h3>
-          <span class="text-xs text-slate-500" id="stockSummary">0건</span>
-        </div>
-        <div id="stockList" class="mt-3 space-y-2"></div>
-      </div>
-    </section>
-  </main>
-
-  <div id="productModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
-    <div class="bg-white w-full max-w-md mx-4 rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h3 id="productModalTitle" class="text-lg font-bold">제품 추가</h3>
-        <button onclick="closeProductModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-      <input type="hidden" id="editProductId">
-      <div class="space-y-3">
-        <div>
-          <label class="text-xs font-semibold text-slate-600">제품명</label>
-          <input id="newProdName" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200">
-        </div>
-        <div>
-          <label class="text-xs font-semibold text-slate-600">제품코드</label>
-          <input id="newProdCode" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200">
-        </div>
-        <div>
-          <label class="text-xs font-semibold text-slate-600">카테고리</label>
-          <input id="newProdCategory" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200">
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="text-xs font-semibold text-slate-600">초기 재고</label>
-            <input id="newProdStock" type="number" min="0" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200">
-          </div>
-          <div>
-            <label class="text-xs font-semibold text-slate-600">알림 기준 수량</label>
-            <input id="alertThreshold" type="number" min="0" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200">
-          </div>
-        </div>
-        <div class="flex items-center gap-2 text-sm">
-          <input id="disableAlert" type="checkbox" class="w-4 h-4 text-blue-600">
-          <label for="disableAlert">알림 필요 없음</label>
-        </div>
-        <div>
-          <label class="text-xs font-semibold text-slate-600">메모</label>
-          <textarea id="newProdMemo" rows="3" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200"></textarea>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 gap-2 mt-4">
-        <button class="py-2.5 rounded-xl bg-slate-100 font-semibold" onclick="closeProductModal()">취소</button>
-        <button class="py-2.5 rounded-xl bg-blue-600 text-white font-semibold" onclick="saveProduct()">저장</button>
+    <div class="track">
+      <div class="track-row">
+        <strong>자력이탈 감지 횟수</strong>
+        <span id="alertCount">0 회</span>
       </div>
     </div>
-  </div>
+
+    <ul id="resultList" class="list"></ul>
+
+    <div class="hint">예: <code>python app.py</code> 또는 <code>run_ai_detection.bat</code></div>
+  </section>
+
+  <script src="./libs/tf.min.js"></script>
+  <script src="./libs/speech-commands.min.js"></script>
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyD4YKF1I3H88O6APECkXVWFMvFiUugzEaQ",
-      authDomain: "newpjt-6d6b6.firebaseapp.com",
-      projectId: "newpjt-6d6b6",
-      storageBucket: "newpjt-6d6b6.firebasestorage.app",
-      messagingSenderId: "598696539163",
-      appId: "1:598696539163:web:429e5713567947bbe274be"
-    };
+  const CACHE_BUST = Date.now().toString();
+  const MODEL_URL_OBJ = new URL("./model.json", window.location.href);
+  const METADATA_URL_OBJ = new URL("./metadata.json", window.location.href);
+  MODEL_URL_OBJ.searchParams.set("t", CACHE_BUST);
+  METADATA_URL_OBJ.searchParams.set("t", CACHE_BUST);
 
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+  const MODEL_URL = MODEL_URL_OBJ.href;
+  const METADATA_URL = METADATA_URL_OBJ.href;
+
+  const DECISION_THRESHOLD = 0.55;
+  const ALERT_LABEL_NAME = "자력이탈";
+  const MOTOR_LABEL_NAME = "모터구동";
+  const ALERT_SCORE_THRESHOLD = 0.7;
+  const ALERT_HOLD_MS = 2000;
+  const ALERT_COOLDOWN_MS = 2500;
+
+  let recognizer;
+  let labels = [];
+  let labelKeys = [];
+  let alertTargetIndex = -1;
+  let alertAccumMs = 0;
+  let lastTickAt = null;
+  let alertRaised = false;
+  let alertCount = 0;
+  let inCooldownUntil = 0;
+
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const statusEl = document.getElementById("status");
+  const alertBoxEl = document.getElementById("alertBox");
+  const listEl = document.getElementById("resultList");
+  const topLabelEl = document.getElementById("topLabel");
+  const topConfidenceEl = document.getElementById("topConfidence");
+  const trackTextEl = document.getElementById("trackText");
+  const trackBarEl = document.getElementById("trackBar");
+  const alertCountEl = document.getElementById("alertCount");
+  const modelInfoEl = document.getElementById("modelInfo");
+
+  function setStatus(text, kind = "") {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function setModelInfo(text) {
+    if (modelInfoEl) modelInfoEl.textContent = text;
+  }
+
+  function ensureLibs() {
+    if (!window.tf || !window.speechCommands) {
+      throw new Error("라이브러리 파일이 없습니다. ./libs/tf.min.js 와 ./libs/speech-commands.min.js 를 넣어주세요.");
     }
+  }
 
-    let currentType = 'IN';
-    let currentScanMode = 'barcode';
-    let html5QrcodeScanner = null;
-    let db = null;
-    let productsCache = [];
-    let transactionsCache = [];
-    let productSearchMatches = [];
-    let selectedProductId = '';
+  function toKey(label, index) {
+    const safe = (label || "").replace(/[^0-9a-zA-Z\u3131-\u318E\uAC00-\uD7A3]+/g, "_");
+    return `${index}_${safe}`;
+  }
 
-    function showToast(message, type = 'info') {
-      const colors = { info: 'bg-slate-800', success: 'bg-emerald-600', error: 'bg-rose-600' };
-      const toast = document.createElement('div');
-      toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 text-white text-sm rounded-full shadow-lg ${colors[type] || colors.info}`;
-      toast.textContent = message;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2200);
-    }
-
-    function setType(type) {
-      currentType = type;
-      document.getElementById('btn-in').className = type === 'IN'
-        ? 'py-3 rounded-xl bg-emerald-600 text-white font-bold'
-        : 'py-3 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold';
-      document.getElementById('btn-out').className = type === 'OUT'
-        ? 'py-3 rounded-xl bg-rose-600 text-white font-bold'
-        : 'py-3 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold';
-    }
-
-    function showSection(target) {
-      document.querySelectorAll('section').forEach(section => section.classList.add('hidden'));
-      const el = document.getElementById(target);
-      if (el) el.classList.remove('hidden');
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        const active = btn.dataset.target === target;
-        btn.className = active
-          ? 'tab-btn px-3 py-2 rounded-xl bg-blue-600 text-white'
-          : 'tab-btn px-3 py-2 rounded-xl bg-white text-slate-600 border border-slate-200';
-      });
-    }
-
-    function applyProductFilters() {
-      const search = (document.getElementById('productSearch').value || '').trim().toLowerCase();
-      const category = document.getElementById('productCategoryFilter').value || '';
-      const stock = document.getElementById('productStockFilter').value || '';
-      const sort = document.getElementById('productSort').value || 'name';
-
-      let list = productsCache.slice();
-      if (search) {
-        list = list.filter(p => {
-          const hay = `${p.name || ''} ${p.code || ''} ${p.category || ''} ${p.memo || ''}`.toLowerCase();
-          return hay.includes(search);
-        });
-      }
-      if (category) list = list.filter(p => (p.category || '') === category);
-      if (stock) {
-        list = list.filter(p => {
-          const threshold = p.low_stock_threshold || 5;
-          const isDisabled = p.alert_disabled === true;
-          const isLow = !isDisabled && (p.stock || 0) < threshold;
-          return stock === 'low' ? isLow : !isLow;
-        });
-      }
-      list.sort((a, b) => {
-        if (sort === 'code') return (a.code || '').localeCompare(b.code || '');
-        if (sort === 'stock-low') return (a.stock || 0) - (b.stock || 0);
-        if (sort === 'stock-high') return (b.stock || 0) - (a.stock || 0);
-        if (sort === 'recent') return (b.updated_at?.toMillis?.() || 0) - (a.updated_at?.toMillis?.() || 0);
-        return (a.name || '').localeCompare(b.name || '');
-      });
-      renderProductsGrid(list);
-    }
-
-    function renderProductsGrid(list) {
-      const grid = document.getElementById('productsGrid');
-      grid.innerHTML = '';
-      if (!list.length) {
-        grid.innerHTML = '<div class="text-center text-slate-400 py-10">제품이 없습니다.</div>';
-        return;
-      }
-      list.forEach(p => {
-        const threshold = p.low_stock_threshold || 5;
-        const isDisabled = p.alert_disabled === true;
-        const isLow = !isDisabled && (p.stock || 0) < threshold;
-        const card = document.createElement('div');
-        card.className = 'bg-white rounded-2xl border border-slate-200 p-4 space-y-2';
-        card.innerHTML = `
-          <div class="flex items-start justify-between gap-2">
-            <div>
-              <p class="font-bold text-base">${p.name || '-'}</p>
-              <p class="text-xs text-slate-500">${p.code || ''}</p>
-              <p class="text-xs text-slate-500">${p.category || ''}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-xs text-slate-500">재고</p>
-              <p class="text-lg font-bold ${isLow ? 'text-rose-600' : 'text-slate-900'}">${p.stock ?? 0}</p>
-            </div>
-          </div>
-          <div class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-2 whitespace-pre-wrap">${p.memo || '메모 없음'}</div>
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <button class="py-2 rounded-xl bg-emerald-600 text-white font-semibold" onclick="quickAdjustStock('${p.id}', 'IN')">입고</button>
-            <button class="py-2 rounded-xl bg-rose-600 text-white font-semibold" onclick="quickAdjustStock('${p.id}', 'OUT')">출고</button>
-          </div>
-          <div class="grid grid-cols-3 gap-2 text-xs">
-            <button class="py-2 rounded-xl bg-slate-100" onclick="editProduct('${p.id}')">수정</button>
-            <button class="py-2 rounded-xl bg-slate-100" onclick="deleteProduct('${p.id}')">삭제</button>
-            <button class="py-2 rounded-xl bg-blue-50 text-blue-600 font-semibold" onclick="openTransactionWithProduct('${p.id}')">입출고</button>
-          </div>
-          ${isLow ? `<div class="text-xs text-rose-600 font-semibold">부족(기준 ${threshold})</div>` : ''}
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    function refreshCategoryFilter() {
-      const select = document.getElementById('productCategoryFilter');
-      const current = select.value;
-      const categories = Array.from(new Set(productsCache.map(p => p.category).filter(Boolean))).sort();
-      select.innerHTML = '<option value="">전체 카테고리</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
-      select.value = current;
-    }
-
-    function renderStockList() {
-      const list = document.getElementById('stockList');
-      list.innerHTML = '';
-      productsCache.forEach(p => {
-        const threshold = p.low_stock_threshold || 5;
-        const isDisabled = p.alert_disabled === true;
-        const isLow = !isDisabled && (p.stock || 0) < threshold;
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between p-3 rounded-xl border border-slate-200';
-        row.innerHTML = `
-          <div>
-            <p class="text-sm font-semibold">${p.name || '-'}</p>
-            <p class="text-xs text-slate-500">${p.code || ''}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-slate-500">재고</p>
-            <p class="text-base font-bold ${isLow ? 'text-rose-600' : 'text-slate-900'}">${p.stock ?? 0}</p>
-          </div>
-        `;
-        list.appendChild(row);
-      });
-      document.getElementById('stockSummary').textContent = `${productsCache.length}건`;
-    }
-
-    function updateProductSearchList(value) {
-      const list = document.getElementById('autocomplete-list');
-      const query = (value || '').trim().toLowerCase();
-      list.innerHTML = '';
-      if (!query) {
-        list.classList.add('hidden');
-        productSearchMatches = [];
-        return;
-      }
-      productSearchMatches = productsCache.filter(p => {
-        const hay = `${p.name || ''} ${p.code || ''}`.toLowerCase();
-        return hay.includes(query);
-      }).slice(0, 10);
-      if (!productSearchMatches.length) {
-        list.classList.add('hidden');
-        return;
-      }
-      productSearchMatches.forEach(p => {
-        const item = document.createElement('button');
-        item.className = 'w-full text-left px-3 py-2 hover:bg-blue-50 text-sm';
-        item.innerHTML = `<div class="font-semibold">${p.name || '-'}</div><div class="text-xs text-slate-500">${p.code || ''}</div>`;
-        item.onclick = () => selectProduct(p.id);
-        list.appendChild(item);
-      });
-      list.classList.remove('hidden');
-    }
-
-    function selectProduct(id) {
-      selectedProductId = id;
-      const product = productsCache.find(p => p.id === id);
-      if (!product) return;
-      document.getElementById('productSearchInput').value = product.name || '';
-      document.getElementById('clearSelectionBtn').classList.remove('hidden');
-      const info = document.getElementById('selectedProductInfo');
-      info.classList.remove('hidden');
-      info.textContent = `${product.name || ''} (${product.code || ''}) · 재고 ${product.stock ?? 0}`;
-      document.getElementById('autocomplete-list').classList.add('hidden');
-    }
-
-    function clearSelection() {
-      selectedProductId = '';
-      document.getElementById('productSearchInput').value = '';
-      document.getElementById('clearSelectionBtn').classList.add('hidden');
-      document.getElementById('selectedProductInfo').classList.add('hidden');
-    }
-
-    function adjustQty(delta) {
-      const input = document.getElementById('txQuantity');
-      const value = Math.max(1, parseInt(input.value || '1', 10) + delta);
-      input.value = value;
-    }
-
-    async function submitTransaction() {
-      if (!selectedProductId) return showToast('제품을 선택해주세요', 'error');
-      const qty = parseInt(document.getElementById('txQuantity').value || '1', 10);
-      if (qty <= 0) return showToast('수량은 1 이상이어야 합니다', 'error');
-
-      const ref = db.collection('products').doc(selectedProductId);
-      try {
-        const result = await db.runTransaction(async (tx) => {
-          const snap = await tx.get(ref);
-          if (!snap.exists) throw new Error('제품을 찾을 수 없습니다.');
-          const data = snap.data();
-          const current = data.stock || 0;
-          const newStock = current + (currentType === 'IN' ? qty : -qty);
-          if (newStock < 0) throw new Error('재고가 부족합니다.');
-          tx.update(ref, { stock: newStock, updated_at: firebase.firestore.FieldValue.serverTimestamp() });
-          return { name: data.name || '', code: data.code || '', newStock };
-        });
-        await db.collection('transactions').add({
-          type: currentType,
-          product_id: selectedProductId,
-          product_name: result.name,
-          product_code: result.code,
-          qty,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showToast(`[${result.name}] ${qty}개 ${currentType === 'IN' ? '입고' : '출고'} 완료`, 'success');
-        document.getElementById('txQuantity').value = 1;
-      } catch (err) {
-        showToast(err.message || '처리 중 오류', 'error');
-      }
-    }
-
-    function renderTxLogs() {
-      const list = document.getElementById('txLogList');
-      list.innerHTML = '';
-      transactionsCache.forEach(tx => {
-        const isIn = tx.type === 'IN';
-        const item = document.createElement('div');
-        item.className = `flex items-center justify-between p-3 rounded-xl border ${isIn ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`;
-        const time = tx.timestamp?.toDate ? tx.timestamp.toDate().toLocaleString('ko-KR') : '';
-        item.innerHTML = `
-          <div>
-            <p class="text-sm font-semibold">${tx.product_name || '-'}</p>
-            <p class="text-xs text-slate-500">${time}</p>
-          </div>
-          <div class="font-bold ${isIn ? 'text-emerald-600' : 'text-rose-600'}">${isIn ? '+' : '-'}${tx.qty || 0}</div>
-        `;
-        list.appendChild(item);
-      });
-    }
-
-    function quickAdjustStock(id, type) {
-      const product = productsCache.find(p => p.id === id);
-      if (!product) return;
-      const input = prompt(`${product.name} ${type === 'IN' ? '입고' : '출고'} 수량`, '1');
-      const qty = parseInt(input || '0', 10);
-      if (!qty || qty <= 0) return;
-      selectedProductId = id;
-      setType(type);
-      document.getElementById('txQuantity').value = qty;
-      submitTransaction();
-    }
-
-    function openTransactionWithProduct(id) {
-      showSection('transactions');
-      selectProduct(id);
-    }
-
-    function openProductModal() {
-      document.getElementById('productModalTitle').textContent = '제품 추가';
-      document.getElementById('editProductId').value = '';
-      document.getElementById('newProdName').value = '';
-      document.getElementById('newProdCode').value = '';
-      document.getElementById('newProdCategory').value = '';
-      document.getElementById('newProdStock').value = 0;
-      document.getElementById('alertThreshold').value = 5;
-      document.getElementById('disableAlert').checked = false;
-      document.getElementById('newProdMemo').value = '';
-      document.getElementById('productModal').classList.remove('hidden');
-    }
-
-    function editProduct(id) {
-      const product = productsCache.find(p => p.id === id);
-      if (!product) return;
-      document.getElementById('productModalTitle').textContent = '제품 수정';
-      document.getElementById('editProductId').value = id;
-      document.getElementById('newProdName').value = product.name || '';
-      document.getElementById('newProdCode').value = product.code || '';
-      document.getElementById('newProdCategory').value = product.category || '';
-      document.getElementById('newProdStock').value = product.stock ?? 0;
-      document.getElementById('alertThreshold').value = product.low_stock_threshold ?? 5;
-      document.getElementById('disableAlert').checked = product.alert_disabled === true;
-      document.getElementById('newProdMemo').value = product.memo || '';
-      document.getElementById('productModal').classList.remove('hidden');
-    }
-
-    function closeProductModal() {
-      document.getElementById('productModal').classList.add('hidden');
-    }
-
-    function saveProduct() {
-      const id = document.getElementById('editProductId').value;
-      const payload = {
-        name: document.getElementById('newProdName').value.trim(),
-        code: document.getElementById('newProdCode').value.trim(),
-        category: document.getElementById('newProdCategory').value.trim(),
-        stock: parseInt(document.getElementById('newProdStock').value || '0', 10),
-        low_stock_threshold: parseInt(document.getElementById('alertThreshold').value || '5', 10),
-        alert_disabled: document.getElementById('disableAlert').checked,
-        memo: document.getElementById('newProdMemo').value.trim(),
-        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      if (!payload.name) return showToast('제품명은 필수입니다', 'error');
-      if (!payload.code) payload.code = `PRD-${Date.now().toString().slice(-6)}`;
-
-      const ref = id ? db.collection('products').doc(id) : db.collection('products').doc();
-      const extra = id ? {} : { created_at: firebase.firestore.FieldValue.serverTimestamp() };
-      ref.set({ ...payload, ...extra }, { merge: true }).then(() => {
-        showToast(id ? '제품이 수정되었습니다' : '제품이 등록되었습니다', 'success');
-        closeProductModal();
-      }).catch(err => showToast(err.message || '저장 실패', 'error'));
-    }
-
-    function deleteProduct(id) {
-      if (!confirm('삭제하시겠습니까?')) return;
-      db.collection('products').doc(id).delete()
-        .then(() => showToast('삭제되었습니다', 'success'))
-        .catch(err => showToast(err.message || '삭제 실패', 'error'));
-    }
-
-    function switchScanMode(mode) {
-      currentScanMode = mode;
-      const barcodeBtn = document.getElementById('barcodeModeBtn');
-      const cameraBtn = document.getElementById('cameraModeBtn');
-      const barcodePanel = document.getElementById('barcodeModePanel');
-      const cameraPanel = document.getElementById('cameraModePanel');
-      if (mode === 'barcode') {
-        barcodeBtn.className = 'px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold';
-        cameraBtn.className = 'px-3 py-1.5 rounded-lg bg-slate-200 text-slate-600 text-xs font-bold';
-        barcodePanel.classList.remove('hidden');
-        cameraPanel.classList.add('hidden');
-        stopCamera();
-        document.getElementById('barcode-input').focus();
-      } else {
-        barcodeBtn.className = 'px-3 py-1.5 rounded-lg bg-slate-200 text-slate-600 text-xs font-bold';
-        cameraBtn.className = 'px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold';
-        barcodePanel.classList.add('hidden');
-        cameraPanel.classList.remove('hidden');
-      }
-    }
-
-    function initBarcodeScanner() {
-      const input = document.getElementById('barcode-input');
-      let timer = null;
-      input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const code = input.value.trim();
-          if (code) handleBarcodeScan(code);
-          input.value = '';
-        }
-      });
-      input.addEventListener('input', () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          const code = input.value.trim();
-          if (code && code.length >= 3) {
-            handleBarcodeScan(code);
-            input.value = '';
-          }
-        }, 120);
-      });
-    }
-
-    function handleBarcodeScan(code) {
-      const product = productsCache.find(p => (p.code || '').toLowerCase() === code.toLowerCase()
-        || (p.name || '').toLowerCase().includes(code.toLowerCase()));
-      if (product) {
-        selectProduct(product.id);
-        addScanHistory(code, product);
-        showToast(`제품 선택됨: ${product.name}`, 'success');
-      } else {
-        addScanHistory(code, null);
-        showToast(`제품 없음: ${code}`, 'error');
-      }
-    }
-
-    function addScanHistory(code, product) {
-      const container = document.getElementById('recent-scans');
-      const item = document.createElement('div');
-      item.className = `p-2 rounded-lg border text-xs ${product ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`;
-      item.textContent = product ? `${product.name} (${code})` : `제품 없음 (${code})`;
-      container.prepend(item);
-      while (container.children.length > 5) container.removeChild(container.lastChild);
-    }
-
-    function toggleCamera() {
-      if (html5QrcodeScanner) {
-        stopCamera();
-      } else {
-        html5QrcodeScanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: 220 });
-        html5QrcodeScanner.render((text) => {
-          handleBarcodeScan(text);
-        }, () => {});
-      }
-    }
-
-    function stopCamera() {
-      if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear();
-        html5QrcodeScanner = null;
-      }
-    }
-
-    function exportProducts() {
-      if (!productsCache.length) return showToast('데이터가 없습니다', 'error');
-      const headers = ['name','code','category','stock','low_stock_threshold','alert_disabled','memo'];
-      const rows = productsCache.map(p => headers.map(h => (p[h] ?? '')).join(','));
-      const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `products_${Date.now()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function triggerImport() {
-      document.getElementById('productsImportInput').click();
-    }
-
-    function parseCsv(text) {
-      return text.split(/\r?\n/).filter(Boolean).map(line => {
-        return line.split(',').map(v => v.trim());
-      });
-    }
-
-    function normalizeHeader(key) {
-      const map = {
-        '제품명': 'name',
-        '제품코드': 'code',
-        '카테고리': 'category',
-        '재고': 'stock',
-        '알림기준수량': 'low_stock_threshold',
-        '알림 기준 수량': 'low_stock_threshold',
-        '메모': 'memo',
-        '알림필요없음': 'alert_disabled',
-        '알림 필요 없음': 'alert_disabled'
-      };
-      return map[key] || key;
-    }
-
-    function handleProductsImport(file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const rows = parseCsv(reader.result || '');
-        if (rows.length < 2) return showToast('데이터가 없습니다', 'error');
-        const header = rows[0].map(h => normalizeHeader(h).toLowerCase());
-        const map = (key) => header.indexOf(key);
-        const idx = {
-          name: map('name'),
-          code: map('code'),
-          category: map('category'),
-          stock: map('stock'),
-          low: map('low_stock_threshold'),
-          memo: map('memo'),
-          alert: map('alert_disabled')
-        };
-        const batch = db.batch();
-        rows.slice(1).forEach(row => {
-          const name = row[idx.name] || '';
-          if (!name) return;
-          const code = row[idx.code] || `PRD-${Date.now().toString().slice(-6)}`;
-          const target = productsCache.find(p => p.code === code);
-          const ref = target ? db.collection('products').doc(target.id) : db.collection('products').doc();
-          const alertValue = (row[idx.alert] || '').toString().trim().toLowerCase();
-          batch.set(ref, {
-            name,
-            code,
-            category: row[idx.category] || '',
-            stock: parseInt(row[idx.stock] || '0', 10),
-            low_stock_threshold: parseInt(row[idx.low] || '5', 10),
-            alert_disabled: ['1', 'y', 'yes', 'true', 'on'].includes(alertValue),
-            memo: row[idx.memo] || '',
-            updated_at: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-        });
-        await batch.commit();
-        showToast('불러오기 완료', 'success');
-      };
-      reader.readAsText(file, 'utf-8');
-    }
-
-    function attachImportListener() {
-      const input = document.getElementById('productsImportInput');
-      if (!input) return;
-      input.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) handleProductsImport(file);
-        e.target.value = '';
-      });
-    }
-
-    function loadRealtimeData() {
-      db.collection('products').onSnapshot(snapshot => {
-        productsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        refreshCategoryFilter();
-        applyProductFilters();
-        renderStockList();
-      });
-      db.collection('transactions').orderBy('timestamp', 'desc').limit(20).onSnapshot(snapshot => {
-        transactionsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderTxLogs();
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      if (typeof lucide !== 'undefined') lucide.createIcons();
-      document.getElementById('todayText').textContent = new Date().toLocaleDateString('ko-KR', {
-        year: 'numeric', month: 'long', day: 'numeric'
-      });
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => showSection(btn.dataset.target));
-      });
-      const searchInput = document.getElementById('productSearchInput');
-      if (searchInput) {
-        searchInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            if (productSearchMatches.length > 0) {
-              selectProduct(productSearchMatches[0].id);
-            }
-          }
-        });
-      }
-
-      db = window.db;
-      if (!db) {
-        showToast('Firebase 연결 실패', 'error');
-        return;
-      }
-
-      loadRealtimeData();
-      initBarcodeScanner();
-      switchScanMode('barcode');
-      attachImportListener();
-
-      // 테스트용 단일 파일: 인증 흐름은 생략
+  function renderRows(classNames) {
+    listEl.innerHTML = "";
+    labelKeys = classNames.map((name, idx) => toKey(name, idx));
+    classNames.forEach((name, idx) => {
+      const key = labelKeys[idx];
+      const li = document.createElement("li");
+      li.className = "item";
+      li.innerHTML = `<div class="row"><strong>${name}</strong><span id="pct-${key}">0%</span></div><div class="bar-bg"><div id="bar-${key}" class="bar"></div></div>`;
+      listEl.appendChild(li);
     });
-  </script>
+  }
+
+  function resolveAlertTargetIndex() {
+    const exact = labels.findIndex((x) => x === ALERT_LABEL_NAME);
+    if (exact >= 0) return exact;
+    return labels.findIndex((x) => (x || "").includes(ALERT_LABEL_NAME));
+  }
+
+  function renderAlertCount() {
+    alertCountEl.textContent = `${alertCount} 회`;
+  }
+
+  function resetAlertTracking() {
+    alertAccumMs = 0;
+    lastTickAt = null;
+    alertRaised = false;
+    inCooldownUntil = 0;
+    trackBarEl.style.width = "0%";
+    trackTextEl.textContent = `0.0 / ${(ALERT_HOLD_MS / 1000).toFixed(1)}초 (기준 ${(ALERT_SCORE_THRESHOLD * 100).toFixed(0)}%)`;
+    alertBoxEl.classList.remove("active");
+  }
+
+  function updateAlertTracking(targetScore) {
+    const now = Date.now();
+    const dt = Math.min(300, lastTickAt === null ? 0 : now - lastTickAt);
+    lastTickAt = now;
+
+    if (targetScore >= ALERT_SCORE_THRESHOLD) {
+      alertAccumMs += dt;
+    } else if (targetScore >= ALERT_SCORE_THRESHOLD - 0.1) {
+      alertAccumMs += dt * 0.25;
+    } else {
+      alertAccumMs -= dt * 0.7;
+    }
+
+    if (alertAccumMs < 0) alertAccumMs = 0;
+    if (alertAccumMs > ALERT_HOLD_MS) alertAccumMs = ALERT_HOLD_MS;
+
+    const progress = Math.min(1, alertAccumMs / ALERT_HOLD_MS);
+    trackBarEl.style.width = `${(progress * 100).toFixed(1)}%`;
+    trackTextEl.textContent = `${(alertAccumMs / 1000).toFixed(1)} / ${(ALERT_HOLD_MS / 1000).toFixed(1)}초 (기준 ${(ALERT_SCORE_THRESHOLD * 100).toFixed(0)}%)`;
+
+    const cooldownActive = now < inCooldownUntil;
+    if (alertAccumMs >= ALERT_HOLD_MS && !alertRaised && !cooldownActive) {
+      alertRaised = true;
+      inCooldownUntil = now + ALERT_COOLDOWN_MS;
+      alertCount += 1;
+      renderAlertCount();
+      alertBoxEl.classList.add("active");
+    }
+
+    if (alertAccumMs <= ALERT_HOLD_MS * 0.2 && !cooldownActive) {
+      alertRaised = false;
+      alertBoxEl.classList.remove("active");
+    }
+
+    return alertBoxEl.classList.contains("active") || cooldownActive;
+  }
+
+  function updatePrediction(scores) {
+    let maxIdx = 0;
+    for (let i = 1; i < scores.length; i++) {
+      if (scores[i] > scores[maxIdx]) maxIdx = i;
+    }
+
+    const top = scores[maxIdx] || 0;
+    const topName = labels[maxIdx] || "알 수 없음";
+    const decided = top >= DECISION_THRESHOLD;
+    topLabelEl.textContent = decided ? `판정: ${topName}` : `판정 대기 (${topName})`;
+    topConfidenceEl.textContent = `신뢰도: ${(top * 100).toFixed(1)}% (임계값 ${(DECISION_THRESHOLD * 100).toFixed(0)}%)`;
+
+    for (let i = 0; i < scores.length; i++) {
+      const pct = Math.max(0, Math.min(100, (scores[i] || 0) * 100));
+      const key = labelKeys[i];
+      const bar = document.getElementById(`bar-${key}`);
+      const pctEl = document.getElementById(`pct-${key}`);
+      if (bar) bar.style.width = `${pct.toFixed(1)}%`;
+      if (pctEl) pctEl.textContent = `${pct.toFixed(1)}%`;
+    }
+
+    const targetScore = alertTargetIndex >= 0 ? (scores[alertTargetIndex] || 0) : 0;
+    const isAlert = updateAlertTracking(targetScore);
+
+    if (isAlert) {
+      setStatus("자력이탈 경고: 누적 조건 충족", "err");
+    } else if (topName === MOTOR_LABEL_NAME && top >= DECISION_THRESHOLD) {
+      setStatus(`모터 정상운행중 (${(top * 100).toFixed(1)}%)`, "ok");
+    } else {
+      setStatus("분석 중", "warn");
+    }
+  }
+
+  async function startListening() {
+    try {
+      ensureLibs();
+      startBtn.disabled = true;
+      setStatus("모델 로딩 중...", "warn");
+
+      recognizer = window.speechCommands.create("BROWSER_FFT", undefined, MODEL_URL, METADATA_URL);
+      await recognizer.ensureModelLoaded();
+
+      const metadataObj = await (await fetch(METADATA_URL, { cache: "no-store" })).json();
+      setModelInfo(`모델 timeStamp: ${metadataObj.timeStamp || "없음"} / labels: ${(metadataObj.wordLabels || []).join(", ")}`);
+
+      labels = recognizer.wordLabels();
+      renderRows(labels);
+
+      alertTargetIndex = resolveAlertTargetIndex();
+      alertCount = 0;
+      renderAlertCount();
+      resetAlertTracking();
+
+      recognizer.listen(
+        (result) => updatePrediction(Array.from(result.scores || [])),
+        {
+          overlapFactor: 0.75,
+          probabilityThreshold: 0,
+          invokeCallbackOnNoiseAndUnknown: true,
+          includeSpectrogram: true
+        }
+      );
+
+      stopBtn.disabled = false;
+      setStatus("분석 중", "warn");
+    } catch (err) {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      setStatus("실패: " + (err && err.message ? err.message : String(err)), "err");
+    }
+  }
+
+  function stopListening() {
+    if (recognizer) recognizer.stopListening();
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+    resetAlertTracking();
+    setStatus("중지됨", "warn");
+  }
+
+  startBtn.addEventListener("click", startListening);
+  stopBtn.addEventListener("click", stopListening);
+  setStatus("준비됨: [마이크 시작] 버튼을 눌러주세요.", "warn");
+</script>
 </body>
 </html>
+
+
+
